@@ -92,6 +92,18 @@ func (r *Reconcile) analyze() error {
 	managers := len(r.managerHosts)
 	workers := len(r.workerHosts)
 
+	log.WithFields(log.Fields{
+		"hosts":    hosts,
+		"nodes":    nodes,
+		"inactive": inactive,
+		"pending":  pending,
+		"active":   active,
+		"error":    error,
+		"locked":   locked,
+		"managers": managers,
+		"workers":  workers,
+	}).Debug("counts")
+
 	switch {
 	case pending > 0 || error > 0 || locked > 0:
 		// TODO: In general, what should we do when certain daemons aren't reachable,
@@ -122,7 +134,7 @@ func (r *Reconcile) analyze() error {
 			r.decision = "promote-worker"
 			r.getJoinTokens()
 		case managers == 2 && (managers > r.managerCount || workers == 0):
-			log.Info("Can't demote node: this would result in a loss of quorum.")
+			log.Debug("Can't demote node: this would result in a loss of quorum.")
 		case managers > r.managerCount || managers%2 == 0 && workers == 0:
 			r.decision = "demote-manager"
 			r.getJoinTokens()
@@ -130,7 +142,7 @@ func (r *Reconcile) analyze() error {
 
 	default:
 		switch {
-		case managers < r.managerCount && (managers%2 == 0 || inactive >= 2):
+		case managers < r.managerCount && (managers%2 == 0 && inactive >= 1 || inactive >= 2):
 			r.decision = "add-manager"
 		default:
 			r.decision = "add-workers"
@@ -163,8 +175,8 @@ func (r *Reconcile) act() error {
 		h := i[rand.Int31n(int32(len(i)))]
 
 		req := swarm.InitRequest{
-			AdvertiseAddr: h.AgentIpAddress,
-			ListenAddr:    "0.0.0.0:2377",
+			AdvertiseAddr: h.AgentIpAddress + ":2377",
+			ListenAddr:    h.AgentIpAddress + ":2377",
 		}
 
 		if _, err := r.hostClient[h.Id].SwarmInit(context.Background(), req); err != nil {
@@ -284,12 +296,12 @@ func (r *Reconcile) act() error {
 }
 
 func (r *Reconcile) addLabel(h rancher.Host) {
-	h.Labels["manager"] = ""
+	h.Labels["swarm"] = "manager"
 	r.updateHost(h)
 }
 
 func (r *Reconcile) deleteLabel(h rancher.Host) {
-	delete(h.Labels, "manager")
+	delete(h.Labels, "swarm")
 	r.updateHost(h)
 }
 

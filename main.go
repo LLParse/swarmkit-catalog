@@ -37,6 +37,11 @@ func main() {
 					EnvVar: "MANAGER_COUNT",
 					Value:  5,
 				},
+				cli.BoolTFlag{
+					Name:   "debug",
+					Usage:  "debug logging",
+					EnvVar: "DEBUG",
+				},
 			},
 		},
 	}
@@ -44,6 +49,10 @@ func main() {
 }
 
 func orchestrate(c *cli.Context) error {
+	if c.Bool("debug") {
+		log.SetLevel(log.DebugLevel)
+	}
+
 	managerCount := c.Int("manager-count")
 	switch {
 	case managerCount <= 0:
